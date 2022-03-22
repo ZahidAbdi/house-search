@@ -1,5 +1,8 @@
 import {useState} from 'react'
 import {Link, useNavigate} from 'react-router-dom' 
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
+import { setDoc, doc, serverTimestamp } from 'firebase/firestore'
+import { db } from '../firebase.config'
 import {ReactComponent as ArrowRightIcon} from '../assets/svg/keyboardArrowRightIcon.svg'
 import visibilityIcon from '../assets/svg/visibilityIcon.svg'
  
@@ -11,15 +14,54 @@ import visibilityIcon from '../assets/svg/visibilityIcon.svg'
     password: '',
   })
 
-  const {name, email, password} = formData
+  const { name, email, password } = formData
 
   const navigate = useNavigate()
 
   const onChange = (e) => {
     setFormData((prevState) => ({
       ...prevState,
-      [e.target.id]: e.target.valueS
+      [e.target.id]: e.target.value
     }))
+  }
+
+  const onSubmit = async (e) => {
+    e.preventDefault()
+
+    try {
+      // Getting the auth value from 'getAuth'
+      const auth = getAuth()
+      
+      
+      // registering the new user with 'createUserWithEmailAndPassword' that returns a promise and putting it into 'userCredential'
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      )
+      
+      
+      // get the user info from the db
+      const user = userCredential.user
+      
+      
+      // just updating the display name 
+      updateProfile(auth.currentUser, {
+        displayName: name,
+       })
+
+      //  Copying everything in the formData state
+       const formDataCopy = {...formData}
+       delete formDataCopy.password
+       formDataCopy.timestamp = serverTimestamp()
+
+       await setDoc(doc(db, 'users', user.uid), formDataCopy)
+
+      // redirects to home
+      navigate('/')
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   return (
@@ -29,8 +71,7 @@ import visibilityIcon from '../assets/svg/visibilityIcon.svg'
           <p className="pageHeader">Welcome!</p> 
         </header>
 
-        <main>
-          <form> 
+        <form onSubmit={onSubmit}> 
           <input 
               type="text" 
               className='nameInput' 
@@ -80,14 +121,13 @@ import visibilityIcon from '../assets/svg/visibilityIcon.svg'
                 <ArrowRightIcon fill='#ffffff' width='34px' height='34px'/>
               </button>
             </div>
-          </form>
+        </form>
 
           {/* Google Authorization Component */}
 
           <Link to='/sign-in' className='registerLink'>
             Sign In Instead
           </Link>
-        </main>
       </div>
     </> 
   )

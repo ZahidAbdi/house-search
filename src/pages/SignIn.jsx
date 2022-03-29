@@ -2,6 +2,7 @@ import {useState} from 'react'
 import { toast } from 'react-toastify'
 import {Link, useNavigate} from 'react-router-dom' 
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth'
+import OAuth from '../components/OAuth'
 import {ReactComponent as ArrowRightIcon} from '../assets/svg/keyboardArrowRightIcon.svg'
 import visibilityIcon from '../assets/svg/visibilityIcon.svg'
  
@@ -27,14 +28,18 @@ import visibilityIcon from '../assets/svg/visibilityIcon.svg'
     e.preventDefault()
 
     try {
+      // Getting the auth value from 'getAuth'
       const auth = getAuth()
 
+
+      // registering the new user with 'createUserWithEmailAndPassword' that returns a promise and putting it into 'userCredential'
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email,
         password
       )
-
+      
+      // checks if the user is a valid user then sends them to the home page (explore page)
       if (userCredential.user) {
         navigate('/')
       }
@@ -74,7 +79,7 @@ import visibilityIcon from '../assets/svg/visibilityIcon.svg'
                 alt="show password" 
                 className="showPassword"
                 onClick={() => setShowPassword((prevState) => !prevState)} 
-                /* if true it'll change state to false and if its false it'll change to true */
+                /* hiding feature: if true it'll change state to false and if its false it'll change to true */
               /> 
             </div>
 
@@ -94,7 +99,7 @@ import visibilityIcon from '../assets/svg/visibilityIcon.svg'
             </div>
           </form>
 
-          {/* Google Authorization Component */}
+          <OAuth />
 
           <Link to='/sign-up' className='registerLink'>
             Sign Up Instead

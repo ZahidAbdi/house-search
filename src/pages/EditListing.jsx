@@ -6,17 +6,18 @@ import {
   uploadBytesResumable,
   getDownloadURL,
 } from 'firebase/storage'
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase.config'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import { v4 as uuidv4 } from 'uuid'
 import LoadingSpinner from '../components/LoadingSpinner'
 
-function CreateListing() {
+function EditListing() {
   // eslint-disable-next-line
   const [geolocationEnabled, setGeolocationEnabled] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [listing, setListing] = useState(false)
   const [formData, setFormData] = useState({
     type: 'rent',
     name: '',
@@ -51,8 +52,37 @@ function CreateListing() {
 
   const auth = getAuth()
   const navigate = useNavigate()
+  const params = useParams()
   const isMounted = useRef(true)
 
+  // Redirect if listing is not user's
+  useEffect(() => {
+    if (listing && listing.userRef !== auth.currentUser.uid) {
+      toast.error('You can not edit that listing')
+      navigate('/')
+    }
+  })
+
+  // Fetch listing to edit
+  useEffect(() => {
+    setLoading(true)
+    const fetchListing = async () => {
+      const docRef = doc(db, 'listings', params.listingId)
+      const docSnap = await getDoc(docRef)
+      if (docSnap.exists()) {
+        setListing(docSnap.data())
+        setFormData({ ...docSnap.data(), address: docSnap.data().location })
+        setLoading(false)
+      } else {
+        navigate('/')
+        toast.error('Listing does not exist')
+      }
+    }
+
+    fetchListing()
+  }, [params.listingId, navigate])
+
+  // Sets userRef to logged in user
   useEffect(() => {
     if (isMounted) {
       onAuthStateChanged(auth, user => {
@@ -70,25 +100,23 @@ function CreateListing() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMounted])
 
-  // this is where i do geocoding, image upload and submit to firebase DB
   const onSubmit = async e => {
     e.preventDefault()
 
-    // check if the discounted price is less
+    setLoading(true)
+
     if (discountedPrice >= regularPrice) {
       setLoading(false)
       toast.error('Discounted price needs to be less than regular price')
       return
     }
 
-    // Check to make sure its not more than 6 images
     if (images.length > 6) {
       setLoading(false)
       toast.error('Max 6 images')
       return
     }
 
-    // geo coding
     let geolocation = {}
     let location
 
@@ -98,18 +126,15 @@ function CreateListing() {
       )
 
       const data = await response.json()
-      // console.log(data)
 
       geolocation.lat = data.results[0]?.geometry.location.lat ?? 0
       geolocation.lng = data.results[0]?.geometry.location.lng ?? 0
 
-      // checks if data is undefined
       location =
         data.status === 'ZERO_RESULTS'
           ? undefined
           : data.results[0]?.formatted_address
 
-      // checking to make sure the address exists
       if (location === undefined || location.includes('undefined')) {
         setLoading(false)
         toast.error('Please enter a correct address')
@@ -161,7 +186,7 @@ function CreateListing() {
       })
     }
 
-    const imageUrls = await Promise.all(
+    const imgUrls = await Promise.all(
       [...images].map(image => storeImage(image))
     ).catch(() => {
       setLoading(false)
@@ -171,27 +196,25 @@ function CreateListing() {
 
     const formDataCopy = {
       ...formData,
-      imageUrls,
+      imgUrls,
       geolocation,
       timestamp: serverTimestamp(),
     }
 
-    // clean up
     formDataCopy.location = address
     delete formDataCopy.images
     delete formDataCopy.address
-    // if theres no offer delete from obj
     !formDataCopy.offer && delete formDataCopy.discountedPrice
 
-    const docRef = await addDoc(collection(db, 'listings'), formDataCopy)
+    // Update listing
+    const docRef = doc(db, 'listings', params.listingId)
+    await updateDoc(docRef, formDataCopy)
     setLoading(false)
     toast.success('Listing saved')
     navigate(`/category/${formDataCopy.type}/${docRef.id}`)
-    setLoading(false)
   }
 
   const onMutate = e => {
-    // check if the boolean in the form if true or false
     let boolean = null
 
     if (e.target.value === 'true') {
@@ -201,7 +224,7 @@ function CreateListing() {
       boolean = false
     }
 
-    // check if its a file
+    // Files
     if (e.target.files) {
       setFormData(prevState => ({
         ...prevState,
@@ -209,11 +232,10 @@ function CreateListing() {
       }))
     }
 
-    // if its a text/boolean/numbers return
+    // Text/Booleans/Numbers
     if (!e.target.files) {
       setFormData(prevState => ({
         ...prevState,
-        // if the value on the left is null then use the right value
         [e.target.id]: boolean ?? e.target.value,
       }))
     }
@@ -226,12 +248,12 @@ function CreateListing() {
   return (
     <div className='profile'>
       <header>
-        <p className='pageHeader'>Create a Listing</p>
+        <p className='pageHeader'>Edit Listing</p>
       </header>
 
       <main>
         <form onSubmit={onSubmit}>
-          <label className='formLabel'>Sell / Rent </label>
+          <label className='formLabel'>Sell / Rent</label>
           <div className='formButtons'>
             <button
               type='button'
@@ -252,6 +274,7 @@ function CreateListing() {
               Rent
             </button>
           </div>
+
           <label className='formLabel'>Name</label>
           <input
             className='formInputName'
@@ -278,7 +301,6 @@ function CreateListing() {
                 required
               />
             </div>
-
             <div>
               <label className='formLabel'>Bathrooms</label>
               <input
@@ -293,6 +315,7 @@ function CreateListing() {
               />
             </div>
           </div>
+
           <label className='formLabel'>Parking spot</label>
           <div className='formButtons'>
             <button
@@ -354,7 +377,7 @@ function CreateListing() {
             onChange={onMutate}
             required
           />
-          {/* check geo location */}
+
           {!geolocationEnabled && (
             <div className='formLatLng flex'>
               <div>
@@ -436,6 +459,7 @@ function CreateListing() {
               />
             </>
           )}
+
           <label className='formLabel'>Images</label>
           <p className='imagesInfo'>
             The first image will be the cover (max 6).
@@ -451,7 +475,7 @@ function CreateListing() {
             required
           />
           <button type='submit' className='primaryButton createListingButton'>
-            Create Listing
+            Edit Listing
           </button>
         </form>
       </main>
@@ -459,4 +483,4 @@ function CreateListing() {
   )
 }
 
-export default CreateListing
+export default EditListing

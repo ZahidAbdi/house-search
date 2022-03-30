@@ -22,7 +22,7 @@ function Listing() {
 
       // checking if it exists and grabbing the doc from the db
       if (docSnap.exists()) {
-        console.log(docSnap.data())
+        // console.log(docSnap.data())
         setListing(docSnap.data())
         setLoading(false)
       }
